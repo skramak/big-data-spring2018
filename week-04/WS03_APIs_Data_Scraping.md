@@ -181,7 +181,7 @@ def get_tweets(
         print("No more tweets found")
         break
       for tweet in new_tweets:
-        # all_tweets = all_tweets.append(parse_tweet(tweet), ignore_index = True)
+        all_tweets = all_tweets.append(parse_tweet(tweet), ignore_index = True)
         if write == True:
             with open(out_file, 'w') as f:
                 f.write(jsonpickle.encode(tweet._json, unpicklable=False) + '\n')
@@ -192,7 +192,7 @@ def get_tweets(
       print("Error : " + str(e))
       break
   print (f"Downloaded {tweet_count} tweets.")
-  # return all_tweets
+  return all_tweets
 
 # Set a Lat Lon
 latlng = '42.359416,-71.093993' # Eric's office (ish)
