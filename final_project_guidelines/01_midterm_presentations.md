@@ -21,4 +21,8 @@ You should make use of at least one dataset that contains more than 250,000 rows
 
 ## Up Next...
 
+<<<<<<< HEAD
 + [Pin-Up materials](./02_pin-up.md) should be submitted to Stellar by *Monday March 14th by 9AM*.
+=======
++ [Pin-Up materials](./02_pin-up.md) should be submitted to Stellar by *Monday May 14th by 9AM*.
+>>>>>>> class/master
