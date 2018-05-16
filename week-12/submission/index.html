@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8"/>
+	<title>Mapping with D3</title>
+	<script src="http://d3js.org/d3.v4.min.js" charset="utf-8"></script>
+	<script src="https://d3js.org/topojson.v2.min.js"></script>
+	<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+	<script src="https://d3js.org/d3-queue.v2.min.js"></script>
+	<style>
+
+	  .Names {
+			fill: none;
+			stroke: #fff;
+	  }
+
+		.axis .domain {
+		  display: none;
+		}
+
+		.hover {
+			stroke-width: 2px;
+			opacity: 0.5;
+		}
+
+	</style>
+</head>
+<body>
+<div class="container">
+	<div id="map"></div>
+</div>
+<div class="container">
+	<div id="chart"></div>
+</div>
+
+<script>
+	// CHOROPLETH MAP
+
+    var width = 800,
+    	height = 700;
+
+    var albersProjection = d3.geoAlbers()
+      .scale( 190000 )
+      .rotate( [71.057,0] )
+      .center( [0, 42.313] )
+      .translate( [width/2,height/2] );
+
+    var path = d3.geoPath()
+        .projection(albersProjection);
+
+    var map = d3.select("#map").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+		var chart = d3.select("#chart").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+		var color = d3.scaleThreshold()
+				.domain([0, 0.1, 0.2, 0.3, 0.4])
+				.range(d3.schemeBlues[5]);
+
+    d3.queue()
+			.defer(d3.json, "data/boston_neigh.json") // Load neighborhood
+      .defer(d3.csv, "data/boston_311_totals.csv") // Load 311 calls
+      .await(ready); // Run 'ready' when JSONs are loaded
+
+    function ready(error, neigh, calls) {
+      if (error) throw error;
+
+      var calls_pct = {}; // Create empty object for holding dataset
+			var IdByName = {};
+	  	calls.forEach(function(d) {
+				calls_pct[d.id]=+((d.twit_count/d.tot_count*100));
+				IdByName[d.id] = d.Name.split(' ').join('_');
+	  });
+
+      map.append("g")
+        .attr("class", "Names")
+        .selectAll("path")
+          .data(topojson.feature(neigh, neigh.objects.boston_neigh).features) // Bind TopoJSON data elements
+        	.enter().append("path")
+          .attr("d", path)
+					.style("fill", function(d) {
+						return color(calls_pct[d.properties.OBJECTID]);
+					})
+				.attr("class", function(d) { return IdByName[d.properties.OBJECTID]; })
+				.on("mouseover", function(d) {
+					d3.selectAll("." + IdByName[d.properties.OBJECTID]).classed("hover",true);
+				})
+				.on("mouseout", function(d) {
+					d3.select(this).style("fill",function(d) { return color(calls_pct[d.properties.OBJECTID])});
+					d3.selectAll("." + IdByName[d.properties.OBJECTID]).classed("hover", false);
+				});
+
+		// STACKED BAR CHART WITH HOVER
+
+	var margin = {top: 20, right: 100, bottom: 200, left: 100},
+	    width = +map.attr("width") - margin.left - margin.right,
+	    height = +map.attr("height") - margin.top - margin.bottom,
+	    chartg = chart.append("g").attr("class", "stack").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+	var x = d3.scaleBand()
+	    .rangeRound([0, width])
+	    .paddingInner(0.05)
+	    .align(0.1);
+
+	var y = d3.scaleLinear()
+	    .rangeRound([height, 0]);
+
+	var z = d3.scaleOrdinal()
+	    .range(["#98abc5", "#8a89a6", "#7b6888", "#6b486b", "#a05d56", "#d0743c", "#ff8c00"]);
+
+		var keys = ["cc_count", "cw_count", "const_count","emp_count","twit_count","ss_count"];
+
+		calls.sort(function(a, b) { return b.tot_count - a.tot_count; });
+	  x.domain(calls.map(function(d) { return d.Name; }));
+	  y.domain([0, d3.max(calls, function(d) { return +d.tot_count; })]).nice();
+	  z.domain(keys);
+
+
+	  chartg.append("g")
+			.selectAll("g")
+			.data(d3.stack().keys(keys)(calls))
+			.enter().append("g")
+			  .attr("fill", function(d) { return z(d.key); })
+				.selectAll("rect")
+			.data(function(d) { return d; })
+			.enter().append("rect")
+			  .attr("x", function(d) { return x(d.data.Name); })
+			  .attr("y", function(d) { return y(d[1]); })
+			  .attr("height", function(d) { return y(d[0]) - y(d[1]); })
+			  .attr("width", x.bandwidth())
+			  .attr("class", function (d) { return d.data.Name;})
+				.on("mouseover", function(d) {
+					d3.selectAll("." + d.data.Name).classed("hover",true);
+				})
+			.on("mouseout", function(d) {
+				d3.selectAll("." + d.data.Name).classed("hover", false);
+			});
+
+	  chartg.append("g")
+	      .attr("class", "axis")
+	      .attr("transform", "translate(0," + height + ")")
+	      .call(d3.axisBottom(x))
+	      .selectAll("text")
+	        .style("text-anchor", "end")
+	        .attr("dx", "-.8em")
+	        .attr("dy", ".15em")
+	        .attr("transform", "rotate(-65)");;;
+
+	  chartg.append("g")
+	      .attr("class", "axis")
+	      .call(d3.axisLeft(y).ticks(null, "s"))
+	    .append("text")
+	      .attr("x", 2)
+	      .attr("y", y(y.ticks().pop()) + 0.5)
+	      .attr("dy", "0.32em")
+	      .attr("fill", "#000")
+	      .attr("font-weight", "bold")
+	      .attr("text-anchor", "start")
+
+	  var legend = chartg.append("g")
+	      .attr("font-family", "sans-serif")
+	      .attr("font-size", 10)
+	      .attr("text-anchor", "end")
+	    .selectAll("g")
+			.data(['Citizens Connect App','City Worker App','Constituent Call','Employee Generated','Twitter','Self Service'].reverse())
+	    .enter().append("g")
+	      .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+	  legend.append("rect")
+	      .attr("x", width - 19)
+	      .attr("width", 19)
+	      .attr("height", 19)
+	      .attr("fill", z);
+
+	  legend.append("text")
+	      .attr("x", width - 24)
+	      .attr("y", 9.5)
+	      .attr("dy", "0.32em")
+	      .text(function(d) { return d; });
+
+
+		}
+
+</script>
+</body>
+</html>
